@@ -2,6 +2,8 @@ import disnake as discord
 from disnake.ext import commands
 from disnake.ext.commands import has_permissions
 
+from utils.context import Context
+
 
 class Admin(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
@@ -9,7 +11,7 @@ class Admin(commands.Cog):
 
     @commands.command(aliases=['clean', 'delete', 'smaz', 'smaž', 'vymaz', 'vymaž'])
     @has_permissions(manage_messages=True)
-    async def purge(self, ctx: discord.ext.commands.Context, limit: int = 0) -> None:
+    async def purge(self, ctx: Context, limit: int = 0) -> None:
         assert isinstance(ctx.channel, (discord.TextChannel, discord.Thread))
         await ctx.channel.purge(limit=limit + 1)
 
