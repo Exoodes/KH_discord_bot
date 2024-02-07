@@ -1,0 +1,22 @@
+# Ignore all
+*
+
+# Unignore python and yml files
+!*.py
+!*.yml
+
+# Unignore txt and markup
+!*.md
+!*.MD
+!*.txt
+!*.TXT
+
+# Unignore all dirs
+!*/
+
+# Ignore temp file
+.vs/
+.vscode/
+
+# Unignore .gitignore
+!.gitignore
