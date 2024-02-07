@@ -1,7 +1,7 @@
 # KH_discord_bot
 
 ## Usage
-- Add `DISCORD_TOKEN=your_token` to `.env` file in `bot/` folder
+- Add `DISCORD_TOKEN=your_token` to `.env` file
 - Run `python main.py` in `bot/` folder
 
 ## Sources
