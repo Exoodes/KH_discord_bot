@@ -9,19 +9,19 @@ from utils.logging import setup_logging
 from bot import KH_BOT
 
 initial_cogs = [
-    # "cogs.admin",
-    # "cogs.info"
+    "cogs.admin"
 ]
 
 if __name__ == "__main__":
     load_dotenv()
     setup_logging()
-    
+
     TOKEN = os.getenv('DISCORD_TOKEN')
-    
+
     intents = discord.Intents.all()
-    bot = KH_BOT(command_prefix=commands.when_mentioned_or("/"), intents=intents)
-    
+    bot = KH_BOT(command_prefix=commands.when_mentioned_or(
+        "/"), intents=intents)
+
     log = logging.getLogger()
     for extension in initial_cogs:
         try:
