@@ -52,9 +52,7 @@ class CategorySelection(commands.Cog):
 
         try:
             overwrites = {}
-            if not is_public:
-                default_role = interaction.guild.default_role
-                overwrites[default_role] = discord.PermissionOverwrite(view_channel=False)
+            overwrites[interaction.guild.default_role] = discord.PermissionOverwrite(view_channel=False)
             category = await interaction.guild.create_category(name=f"{name}", overwrites=overwrites)
 
             new_category = Category(channel_id=category.id, name=name, emoji=emoji, is_public=is_public)
@@ -141,12 +139,9 @@ class CategorySelection(commands.Cog):
         finally:
             session.close()
 
-    @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
-        if payload.user_id == self.bot.user.id:
-            return
-
+    async def on_reaction_role_picker(self, payload: discord.RawReactionActionEvent):
         session = self.bot.db.Session()
+
         try:
             bot_message = (
                 session.query(BotMessage)
@@ -162,6 +157,12 @@ class CategorySelection(commands.Cog):
 
             category = session.query(Category).filter_by(emoji=str(payload.emoji)).first()
             if not category:
+                return
+
+            if category.is_public:
+                category_channel = self.bot.get_channel(category.channel_id)
+                await category_channel.set_permissions(payload.member, view_channel=True)
+                logging.info(f"User {payload.user_id} joined category {category.name}")
                 return
 
             user_category = (
@@ -195,6 +196,105 @@ class CategorySelection(commands.Cog):
             await reaction.remove(payload.member)
         finally:
             session.close()
+
+    async def on_reaction_decline(self, payload: discord.RawReactionActionEvent):
+        session = self.bot.db.Session()
+        request = session.query(CategoryRequest).filter_by(request_message_id=payload.message_id).first()
+
+        request.status = "declined"
+        session.commit()
+
+        # Notify user
+        user = self.bot.get_user(request.user_id)
+        category = session.query(Category).filter_by(id=request.category_id).first()
+        await user.send(f"Your request to join the category '{category.name}' has been denied.")
+
+        # Update admin message
+        channel = self.bot.get_channel(payload.channel_id)
+        admin_message = await channel.fetch_message(payload.message_id)
+        embed = admin_message.embeds[0]
+        embed.add_field(name="Status", value="Denied", inline=False)
+        embed.add_field(name="Denied by", value=payload.member.name, inline=False)
+        await admin_message.edit(embed=embed)
+        await admin_message.clear_reactions()
+
+        # Log the action
+        logging.info(
+            f"Admin {payload.member.name} denied category request for user {request.user_id} to join category {category.name}"
+        )
+
+    async def on_reaction_accept(self, payload: discord.RawReactionActionEvent):
+        session = self.bot.db.Session()
+        request = session.query(CategoryRequest).filter_by(request_message_id=payload.message_id).first()
+
+        request.status = "approved"
+        session.commit()
+
+        # Notify user
+        user = self.bot.get_user(request.user_id)
+        category = session.query(Category).filter_by(id=request.category_id).first()
+        await user.send(f"Your request to join the category '{category.name}' has been approved.")
+
+        # Add user to category
+        category_channel = self.bot.get_channel(category.channel_id)
+        await category_channel.set_permissions(payload.member, view_channel=True)
+
+        # Update admin message
+        channel = self.bot.get_channel(payload.channel_id)
+        admin_message = await channel.fetch_message(payload.message_id)
+        embed = admin_message.embeds[0]
+        embed.add_field(name="Status", value="approved", inline=False)
+        embed.add_field(name="Accepted by", value=payload.member.name, inline=False)
+        await admin_message.edit(embed=embed)
+        await admin_message.clear_reactions()
+
+        # Log the action
+        logging.info(
+            f"Admin {payload.member.name} accepted category request for user {request.user_id} to join category {category.name}"
+        )
+
+    async def handle_request(self, payload: discord.RawReactionActionEvent) -> None:
+        session = self.bot.db.Session()
+
+        accept_emoji = session.query(ConfigEmoji).filter_by(purpose="accept").first()
+        decline_emoji = session.query(ConfigEmoji).filter_by(purpose="decline").first()
+
+        if payload.emoji.name == accept_emoji.emoji_id:
+            await self.on_reaction_accept(payload)
+        elif payload.emoji.name == decline_emoji.emoji_id:
+            await self.on_reaction_decline(payload)
+
+        session.close()
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
+        if payload.user_id == self.bot.user.id:
+            return
+
+        session = self.bot.db.Session()
+
+        chooser_message = (
+            session.query(BotMessage)
+            .filter_by(
+                channel_id=payload.channel_id,
+                message_id=payload.message_id,
+                message_type=BotMessageType.CategoryChooser,
+            )
+            .first()
+        )
+        if chooser_message:
+            session.close()
+            await self.on_reaction_role_picker(payload)
+            return
+
+        request_message = (
+            session.query(CategoryRequest).filter_by(request_message_id=payload.message_id, status="pending")
+        ).first()
+
+        if request_message:
+            await self.handle_request(payload)
+
+        session.close()
 
     async def create_admin_embed(self, user: discord.User, category: Category) -> discord.Embed:
         embed = discord.Embed(
