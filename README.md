@@ -1,10 +1,9 @@
 # KH_discord_bot
 
-# TODO
-- Create Category when add_category is called
-- Add permission to user when it is created
-- If the category is not private add permission
-- Add logging everywhere
+## .env
+DISCORD_TOKEN=
+ADMIN_CHANNEL_ID=
+ROLE_PICKER_CHANNEL_ID=
 
 ## Usage
 - Add `DISCORD_TOKEN=your_token` to `.env` file

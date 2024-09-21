@@ -3,15 +3,16 @@ import logging
 from config import Bot_config
 
 
-def setup_logging():
+def setup_logging() -> logging.Logger:
     # Create a custom logger
     logger = logging.getLogger("discord_bot")
     logger.setLevel(logging.DEBUG)  # Set to lowest level, handlers will filter
 
     # Create handlers
     c_handler = logging.StreamHandler()  # Console handler
-    f_handler = logging.FileHandler("logs/bot.log")
     c_handler.setLevel(logging.WARNING)  # Less detailed for console
+
+    f_handler = logging.FileHandler("logs/bot.log")
     f_handler.setLevel(getattr(logging, Bot_config.LOG_LEVEL))  # More detailed for file
 
     # Create formatters and add it to handlers

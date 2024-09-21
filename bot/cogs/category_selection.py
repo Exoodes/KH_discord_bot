@@ -16,31 +16,30 @@ class CategorySelection(commands.Cog):
         await self.setup_category_choosing_message()
 
     @app_commands.command(name="remove_category")
+    @app_commands.describe(name="Name of the category to remove")
     @app_commands.checks.has_permissions(administrator=True)
     async def remove_category(self, interaction: discord.Interaction, name: str):
         await interaction.response.defer(ephemeral=True)
-        session = self.bot.db.Session()
 
-        try:
-            category = session.query(Category).filter_by(name=name).first()
-            if category:
-                category = discord.utils.get(interaction.guild.categories, id=category.channel_id)
-                await category.delete()
+        with self.bot.db.dp_session() as session:
+            try:
+                category_to_delete = session.query(Category).filter_by(name=name).first()
+                if category_to_delete:
+                    discord_category = discord.utils.get(interaction.guild.categories, id=category_to_delete.channel_id)
+                    if discord_category:
+                        await discord_category.delete()
 
-                session.delete(category)
-                session.commit()
+                    session.delete(category_to_delete)
 
-                await self.update_category_message()
+                    response = f"Category '{name}' has been removed."
+                else:
+                    response = f"Category '{name}' not found."
+            except Exception as e:
+                self.bot.logger.error(f"Error while removing category: {str(e)}", exc_info=True)
+                response = f"An error occurred: {str(e)}"
 
-                response = f"Category '{name}' has been removed."
-            else:
-                response = f"Category '{name}' not found."
-        except Exception as e:
-            session.rollback()
-            response = f"An error occurred: {str(e)}"
-        finally:
-            await interaction.followup.send(response, ephemeral=True)
-            session.close()
+        await self.update_category_message()
+        await interaction.followup.send(response, ephemeral=True)
 
     @app_commands.command(name="add_category")
     @app_commands.checks.has_permissions(administrator=True)

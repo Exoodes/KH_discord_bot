@@ -1,8 +1,8 @@
 import enum
 
-from sqlalchemy import Column, Enum, ForeignKey, Integer, String, create_engine
+from sqlalchemy import Column, Enum, ForeignKey, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
 Base = declarative_base()
@@ -62,33 +62,3 @@ class ConfigEmoji(Base):
     id = Column(Integer, primary_key=True)
     purpose = Column(String, unique=True, nullable=False)
     emoji_id = Column(String, nullable=False)
-
-
-class Database:
-    def __init__(self, database_url):
-        self.engine = create_engine(database_url)
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)
-        self.init_emojis()
-
-    def get_session(self):
-        return self.Session()
-
-    def init_emojis(self):
-        session = self.get_session()
-        try:
-            existing_emojis = session.query(ConfigEmoji.purpose).all()
-            existing_purposes = {emoji.purpose for emoji in existing_emojis}
-
-            emojis_to_add = [
-                ConfigEmoji(purpose="accept", emoji_id="✅"),
-                ConfigEmoji(purpose="decline", emoji_id="❌"),
-            ]
-
-            for emoji in emojis_to_add:
-                if emoji.purpose not in existing_purposes:
-                    session.add(emoji)
-
-            session.commit()
-        finally:
-            session.close()
