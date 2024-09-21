@@ -1,3 +1,4 @@
+import logging
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine
@@ -7,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from database.models import ConfigEmoji
 
 Base = declarative_base()
+logger = logging.getLogger("discord_bot")
 
 
 class Database:
@@ -45,6 +47,7 @@ class Database:
             yield session
             session.commit()
         except Exception as e:
+            logger.error(f"An error occurred: {e}")
             session.rollback()
             raise e
         finally:
