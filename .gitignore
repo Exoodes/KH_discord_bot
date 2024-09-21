@@ -17,6 +17,7 @@
 # Ignore temp file
 .vs/
 .vscode/
+discord_bot_env/
 
 # Unignore .gitignore
 !.gitignore
