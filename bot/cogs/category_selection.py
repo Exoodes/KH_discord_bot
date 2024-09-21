@@ -12,6 +12,9 @@ class CategorySelection(commands.Cog):
     def __init__(self, bot: KHBot):
         self.bot = bot
 
+    async def on_ready(self):
+        await self.setup_category_choosing_message()
+
     @app_commands.command(name="remove_category")
     @app_commands.checks.has_permissions(administrator=True)
     async def remove_category(self, interaction: discord.Interaction, name: str):
@@ -21,6 +24,9 @@ class CategorySelection(commands.Cog):
         try:
             category = session.query(Category).filter_by(name=name).first()
             if category:
+                category = discord.utils.get(interaction.guild.categories, id=category.channel_id)
+                await category.delete()
+
                 session.delete(category)
                 session.commit()
 
@@ -45,7 +51,13 @@ class CategorySelection(commands.Cog):
         session = self.bot.db.Session()
 
         try:
-            new_category = Category(name=name, emoji=emoji, is_public=is_public)
+            overwrites = {}
+            if not is_public:
+                default_role = interaction.guild.default_role
+                overwrites[default_role] = discord.PermissionOverwrite(view_channel=False)
+            category = await interaction.guild.create_category(name=f"{name}", overwrites=overwrites)
+
+            new_category = Category(channel_id=category.id, name=name, emoji=emoji, is_public=is_public)
             session.add(new_category)
             session.commit()
 
@@ -60,8 +72,9 @@ class CategorySelection(commands.Cog):
 
     @app_commands.command(name="setup_category_message")
     @app_commands.checks.has_permissions(administrator=True)
-    async def setup_category_message(self, interaction: discord.Interaction, channel: discord.TextChannel):
+    async def setup_category_message(self, interaction: discord.Interaction):
         embed = await self.create_category_embed()
+        channel = self.bot.get_channel(self.bot.role_picker_channel_id)
         message = await channel.send(embed=embed)
 
         session = self.bot.db.Session()
@@ -79,6 +92,54 @@ class CategorySelection(commands.Cog):
             session.close()
 
         await interaction.response.send_message("Category selection message has been set up.", ephemeral=True)
+
+    async def setup_category_choosing_message(self):
+        session = self.bot.db.Session()
+
+        role_picker = session.query(BotMessage).filter_by(message_type=BotMessageType.CategoryChooser).first()
+        session.close()
+
+        if not role_picker:
+            # Nothing in database
+            await self.create_category_choosing_message()
+            return
+
+        if role_picker.channel_id != self.bot.role_picker_channel_id:
+            # Channel ID doesn't match
+            await self.create_category_choosing_message()
+            return
+
+        channel = self.bot.get_channel(role_picker.channel_id)
+        try:
+            await channel.fetch_message(role_picker.message_id)
+        except discord.NotFound:
+            # Message not found
+            await self.create_category_choosing_message()
+
+    async def create_category_choosing_message(self):
+        session = self.bot.db.Session()
+        role_picker = session.query(BotMessage).filter_by(message_type=BotMessageType.CategoryChooser).first()
+        if role_picker:
+            session.delete(role_picker)
+            session.commit()
+
+        embed = await self.create_category_embed()
+        channel = self.bot.get_channel(self.bot.role_picker_channel_id)
+
+        message = await channel.send(embed=embed)
+
+        try:
+            categories = session.query(Category).all()
+            for category in categories:
+                await message.add_reaction(category.emoji)
+
+            bot_message = BotMessage(
+                channel_id=channel.id, message_id=message.id, message_type=BotMessageType.CategoryChooser
+            )
+            session.add(bot_message)
+            session.commit()
+        finally:
+            session.close()
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
@@ -113,7 +174,6 @@ class CategorySelection(commands.Cog):
                 await reaction.remove(payload.member)
                 return
 
-            print(self.bot.admin_channel_id)
             admin_channel = self.bot.get_channel(self.bot.admin_channel_id)
             admin_embed = await self.create_admin_embed(payload.member, category)
             admin_message = await admin_channel.send(embed=admin_embed)

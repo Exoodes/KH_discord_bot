@@ -11,8 +11,6 @@ class KHBot(commands.Bot):
     def __init__(self):
         self.db = Database(Bot_config.DATABASE_URL)
         self.admin_channel_id = Bot_config.ADMIN_CHANNEL_ID
-        print(self.admin_channel_id)
-        print(Bot_config.ADMIN_CHANNEL_ID)
         self.role_picker_channel_id = Bot_config.ROLE_PICKER_CHANNEL_ID
 
         intents = discord.Intents.all()
@@ -36,6 +34,8 @@ class KHBot(commands.Bot):
                 print(f"\tCommand {command.name} ready")
         except Exception as e:
             print(e)
+
+        await self.cogs["CategorySelection"].on_ready()
         print("Bot is up and running")
 
 
