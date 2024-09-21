@@ -5,7 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot.bot import KHBot
-from database.models import BotMessage, BotMessageType, Category
+from database.models import BotMessage, BotMessageType, Category, CategoryRequest, ConfigEmoji, UserCategory
 
 
 class CategorySelection(commands.Cog):
@@ -79,6 +79,70 @@ class CategorySelection(commands.Cog):
             session.close()
 
         await interaction.response.send_message("Category selection message has been set up.", ephemeral=True)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
+        if payload.user_id == self.bot.user.id:
+            return
+
+        session = self.bot.db.Session()
+        try:
+            bot_message = (
+                session.query(BotMessage)
+                .filter_by(
+                    channel_id=payload.channel_id,
+                    message_id=payload.message_id,
+                    message_type=BotMessageType.CategoryChooser,
+                )
+                .first()
+            )
+            if not bot_message:
+                return
+
+            category = session.query(Category).filter_by(emoji=str(payload.emoji)).first()
+            if not category:
+                return
+
+            user_category = (
+                session.query(UserCategory).filter_by(user_id=payload.user_id, category_id=category.id).first()
+            )
+            if user_category:
+                channel = self.bot.get_channel(payload.channel_id)
+                message = await channel.fetch_message(payload.message_id)
+                reaction = discord.utils.get(message.reactions, emoji=payload.emoji.name)
+                await reaction.remove(payload.member)
+                return
+
+            print(self.bot.admin_channel_id)
+            admin_channel = self.bot.get_channel(self.bot.admin_channel_id)
+            admin_embed = await self.create_admin_embed(payload.member, category)
+            admin_message = await admin_channel.send(embed=admin_embed)
+
+            new_request = CategoryRequest(
+                user_id=payload.user_id, category_id=category.id, request_message_id=admin_message.id
+            )
+            session.add(new_request)
+            session.commit()
+
+            accept_emoji = session.query(ConfigEmoji).filter_by(purpose="accept").first()
+            decline_emoji = session.query(ConfigEmoji).filter_by(purpose="decline").first()
+            await admin_message.add_reaction(accept_emoji.emoji_id)
+            await admin_message.add_reaction(decline_emoji.emoji_id)
+
+            channel = self.bot.get_channel(payload.channel_id)
+            message = await channel.fetch_message(payload.message_id)
+            reaction = discord.utils.get(message.reactions, emoji=payload.emoji.name)
+            await reaction.remove(payload.member)
+        finally:
+            session.close()
+
+    async def create_admin_embed(self, user: discord.User, category: Category) -> discord.Embed:
+        embed = discord.Embed(
+            title="Category Join Request", description=f"{user.mention} wants to join {category.name}"
+        )
+        embed.add_field(name="User", value=user.name, inline=True)
+        embed.add_field(name="Category", value=category.name, inline=True)
+        return embed
 
     async def update_category_message(self) -> None:
         session = self.bot.db.Session()

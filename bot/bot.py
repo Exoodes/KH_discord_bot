@@ -2,19 +2,23 @@ import os
 
 import discord
 from discord.ext import commands
-from dotenv import load_dotenv
 
 from config import Bot_config
 from database.models import Database
-
-load_dotenv()
 
 
 class KHBot(commands.Bot):
     def __init__(self):
         self.db = Database(Bot_config.DATABASE_URL)
+        self.admin_channel_id = Bot_config.ADMIN_CHANNEL_ID
+        print(self.admin_channel_id)
+        print(Bot_config.ADMIN_CHANNEL_ID)
+        self.role_picker_channel_id = Bot_config.ROLE_PICKER_CHANNEL_ID
 
         intents = discord.Intents.all()
+        intents.message_content = True
+        intents.reactions = True
+
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):

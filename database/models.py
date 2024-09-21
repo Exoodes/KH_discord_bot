@@ -27,6 +27,7 @@ class Category(Base):
     __tablename__ = "categories"
 
     id = Column(Integer, primary_key=True)
+    channel_id = Column(Integer, nullable=False)
     name = Column(String, unique=True, nullable=False)
     emoji = Column(String, unique=True, nullable=False)
     is_public = Column(Boolean, default=True, nullable=False)
@@ -68,6 +69,26 @@ class Database:
         self.engine = create_engine(database_url)
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
+        self.init_emojis()
 
     def get_session(self):
         return self.Session()
+
+    def init_emojis(self):
+        session = self.get_session()
+        try:
+            existing_emojis = session.query(ConfigEmoji.purpose).all()
+            existing_purposes = {emoji.purpose for emoji in existing_emojis}
+
+            emojis_to_add = [
+                ConfigEmoji(purpose="accept", emoji_id="✅"),
+                ConfigEmoji(purpose="decline", emoji_id="❌"),
+            ]
+
+            for emoji in emojis_to_add:
+                if emoji.purpose not in existing_purposes:
+                    session.add(emoji)
+
+            session.commit()
+        finally:
+            session.close()
