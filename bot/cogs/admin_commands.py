@@ -2,9 +2,11 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from bot.bot import KHBot
+
 
 class AdminCommands(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: KHBot):
         self.bot = bot
 
     @app_commands.command(name="clean")

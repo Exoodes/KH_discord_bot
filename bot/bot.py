@@ -5,12 +5,15 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 from config import Bot_config
+from database.models import Database
 
 load_dotenv()
 
 
-class MyBot(commands.Bot):
+class KHBot(commands.Bot):
     def __init__(self):
+        self.db = Database(Bot_config.DATABASE_URL)
+
         intents = discord.Intents.all()
         super().__init__(command_prefix="!", intents=intents)
 
@@ -25,12 +28,14 @@ class MyBot(commands.Bot):
         try:
             synced = await self.tree.sync()
             print(f"Synced {len(synced)} commands")
+            for command in synced:
+                print(f"\tCommand {command.name} ready")
         except Exception as e:
             print(e)
         print("Bot is up and running")
 
 
-bot = MyBot()
+bot = KHBot()
 
 
 def run_bot():
